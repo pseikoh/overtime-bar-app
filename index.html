@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111315">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Bar-Bestellung</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand"><span class="logo">▣</span> Overtime Bar-Bestellung</div>
+    <div id="topbar-bar" class="topbar-bar"></div>
+    <div class="topbar-actions">
+      <button id="btn-orders" class="ghost hidden">Meine Bestellungen <span id="orders-badge" class="badge hidden"></span></button>
+      <button id="btn-switch" class="ghost hidden">Bar wechseln</button>
+    </div>
+  </header>
+  <div id="netbar" class="netbar hidden"></div>
+  <main id="app"></main>
+  <div id="toast" class="toast hidden"></div>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
