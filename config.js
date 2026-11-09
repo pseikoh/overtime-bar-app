@@ -2,5 +2,5 @@
 window.OT_CONFIG = {
   apiKey: "AIzaSyATtustNrYIr4Zx7_rjk8DwagBClmZmrvU",
   projectId: "overtime-lagerprogramm-orders",
-  appVersion: "1.0"
+  appVersion: "1.1"
 };

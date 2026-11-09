@@ -1,5 +1,5 @@
 // Service Worker: hält die App-Dateien offline verfügbar. Bei neuer Version CACHE erhöhen.
-const CACHE = "ot-bar-v1";
+const CACHE = "ot-bar-v2";
 const FILES = ["./", "index.html", "styles.css", "app.js", "config.js", "manifest.webmanifest", "icon-192.png", "icon-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener("activate", e => {

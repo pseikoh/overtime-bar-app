@@ -94,7 +94,13 @@
   async function loadSortiment() {
     try {
       const d = await api("GET", "sortiment/aktuell");
-      if (d && d.fields) { state.sortiment = fromFields(d.fields); LS.set("sortiment", state.sortiment); }
+      if (d && d.fields) {
+        const neu = fromFields(d.fields);
+        const changed = JSON.stringify(neu.artikel) + JSON.stringify(neu.bars) !== JSON.stringify((state.sortiment || {}).artikel) + JSON.stringify((state.sortiment || {}).bars);
+        state.sortiment = neu; LS.set("sortiment", state.sortiment);
+        if (changed && state.view === "order") renderList();
+        if (changed && state.view === "bars") render();
+      }
       setNet("");
       return true;
     } catch (e) {
@@ -167,6 +173,11 @@
     });
     return out;
   }
+  // Einheit einer bestellten Position (mit der Kartongröße zum Bestellzeitpunkt)
+  function unitLabelPos(a, p) {
+    if (p.einheit === "Bund/Kiste" && p.gebinde_inhalt && !(a && a.fass)) return `${(a && a.gebinde) || "Kiste"} à ${p.gebinde_inhalt}`;
+    return unitLabel(a, p.einheit, p.menge);
+  }
   function unitLabel(a, einheit, n) {
     if (a && a.fass) return n === 1 ? "Fass" : "Fässer";
     if (einheit === "Bund/Kiste") return `${(a && a.gebinde) || "Kiste"}${a && a.gebinde_inhalt > 1 ? " à " + a.gebinde_inhalt : ""}`;
@@ -220,6 +231,7 @@
     $app.querySelectorAll(".bar-btn").forEach(b => b.onclick = () => {
       state.bar = b.dataset.bar; LS.set("bar", state.bar); sessionStorage.setItem("ot_bar_session", state.bar);
       loadDraft(); state.view = "order"; state.cat = "Alle"; state.search = ""; render();
+      loadSortiment(); // immer mit dem aktuellen Sortiment bestellen
     });
     const r = document.getElementById("retry"); if (r) r.onclick = async () => { await loadSortiment(); render(); };
     document.getElementById("setup").onclick = () => { state.view = "setup"; render(); };
@@ -317,7 +329,11 @@
     const id = newId();
     const data = { format: "overtime-bar-bestellung-1", id, bar: state.bar, erstellt: nowIso(),
       geraet: LS.get("device", "") || "Tablet", bemerkung: (state.note || "").trim().slice(0, 300),
-      positionen: draftPositions().map(p => ({ artikelcode: p.artikelcode, artikelname: p.artikelname, menge: p.menge, einheit: p.einheit })) };
+      positionen: draftPositions().map(p => {
+        const a = artByCode(p.artikelcode), o = { artikelcode: p.artikelcode, artikelname: p.artikelname, menge: p.menge, einheit: p.einheit };
+        if (p.einheit === "Bund/Kiste" && a && a.gebinde_inhalt) o.gebinde_inhalt = a.gebinde_inhalt; // Kartongröße zum Bestellzeitpunkt
+        return o;
+      }) };
     const list = myOrders(); list.push({ id, data, local: "warten", status: "" }); saveOrders(list);
     state.draft = {}; saveDraft(); state.note = "";
     await flushOutbox();
@@ -345,13 +361,16 @@
       ${list.length ? list.map(o => {
         const key = o.local === "warten" ? (o.fehler === "code" ? "fehler" : "warten") : (o.status || "gesendet");
         const st = key === "fehler" ? ["Zugangscode ungültig", "st-fehler"] : (STATUS_TEXT[key] || [key, "st-gesendet"]);
-        const del = {}; (o.geliefert || []).forEach(g => del[g.artikelcode + "|" + g.einheit] = g.geliefert);
+        const del = {}, delText = {};
+        (o.geliefert || []).forEach(g => { del[g.artikelcode + "|" + g.einheit] = g.geliefert; if (g.geliefert_text) delText[g.artikelcode + "|" + g.einheit] = g.geliefert_text; });
         return `<div class="order"><div class="head"><b>${timeText(o.data.erstellt)} Uhr</b><span class="status ${st[1]}">${esc(st[0])}</span>
           <span style="color:var(--muted)">${o.data.positionen.length} Posten</span></div>
           <ul>${o.data.positionen.map(p => {
             const a = artByCode(p.artikelcode); const k = p.artikelcode + "|" + p.einheit;
+            if (o.status === "beliefert" && delText[k])
+              return `<li>${esc(p.artikelname)}: <span class="changed">${esc(delText[k])}</span> statt ${p.menge} ${esc(unitLabelPos(a, p))}</li>`;
             const chg = o.status === "beliefert" && k in del && del[k] !== p.menge;
-            return `<li>${esc(p.artikelname)}: ${chg ? `<span class="changed">${del[k]} statt ${p.menge}</span>` : p.menge} ${esc(unitLabel(a, p.einheit, p.menge))}</li>`;
+            return `<li>${esc(p.artikelname)}: ${chg ? `<span class="changed">${del[k]} statt ${p.menge}</span>` : p.menge} ${esc(unitLabelPos(a, p))}</li>`;
           }).join("")}</ul>${o.data.bemerkung ? `<p style="color:var(--muted);margin:8px 0 0">Bemerkung: ${esc(o.data.bemerkung)}</p>` : ""}</div>`;
       }).join("") : `<div class="panel empty">Noch keine Bestellungen von diesem Tablet.</div>`}`;
     const bb = document.createElement("div"); bb.className = "bottombar"; document.body.appendChild(bb);
@@ -365,7 +384,8 @@
   document.getElementById("btn-orders").onclick = () => { state.view = "orders"; render(); };
   window.addEventListener("online", () => { setNet(""); flushOutbox(); });
   window.addEventListener("offline", () => setNet("Keine Internetverbindung – Bestellungen werden zwischengespeichert."));
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) { flushOutbox(); pollStatus(); } });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { loadSortiment(); flushOutbox(); pollStatus(); } });
+  window.addEventListener("focus", () => loadSortiment());
 
   async function start() {
     render();
